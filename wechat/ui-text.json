@@ -1,0 +1,9 @@
+{
+  "score": "本次得分", "best": "牧场纪录", "coins": "金币", "stars": "星星",
+  "pause": "暂停", "settings": "设置", "music": "音乐", "sfx": "音效",
+  "on": "开", "off": "关", "back": "返回", "retry": "重试",
+  "saved": "保存成功", "saveError": "保存失败", "audioError": "声音加载失败",
+  "record": "新纪录", "again": "再跑一次", "home": "返回牧场",
+  "hint": "轻触跳跃  上滑高跳  下滑下蹲",
+  "magnet": "磁铁", "shield": "护盾", "starMultiplier": "双星"
+}

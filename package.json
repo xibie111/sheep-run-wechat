@@ -1,0 +1,32 @@
+{
+  "name": "sheep-run",
+  "version": "1.0.5",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 4173",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview --host 0.0.0.0 --port 4174",
+    "test": "vitest run",
+    "wechat:typecheck": "tsc --noEmit -p wechat/tsconfig.json",
+    "wechat:build": "node tools/wechat-full-pipeline.mjs",
+    "wechat:build:local": "node tools/wechat-full-pipeline.mjs --bundled",
+    "wechat:poc:build": "npm run wechat:typecheck && node tools/wechat-build.mjs",
+    "wechat:test": "vitest run wechat/src",
+    "wechat:verify": "node tools/wechat-full-verify.mjs --require-budget",
+    "wechat:review": "node tools/wechat-full-acceptance.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.2",
+    "@capacitor/core": "8.5.2",
+    "phaser": "4.2.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.2",
+    "playwright": "1.62.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.1",
+    "vitest": "5.0.2"
+  }
+}
