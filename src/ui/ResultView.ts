@@ -84,9 +84,9 @@ export function addResultView(scene: Phaser.Scene, result: ResultSceneData): Pha
     audio?.initializeAfterGesture(); audio?.play('button');
   }, { width: 128, height: 34, font: 'display', fontSize: '12',
     art: { key: CONTENT_V2_KEYS.tripEntry, width: 480, height: 154 } });
-  // The generated entry already contains a book; reserve its left-hand ink.
+  // The authored book ends at x=-19; keep the label inside the remaining paper.
   const words = entry.list[1] as Phaser.GameObjects.BitmapText;
-  words.setX(words.x + 7);
+  words.setScale(Math.min(words.scaleX, 58 / words.width)).setX(-16);
   watchViewport(scene, size => {
     const box = resultTripEntry(size, safeUiInsets(scene));
     entry.setPosition(box.x + box.width / 2, box.y + box.height / 2);

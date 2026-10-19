@@ -93,6 +93,16 @@ async function session(id, { fixtures = {}, query = "", width = screen.width, he
     await page.screenshot({ path: resolve(output, `${id}-${name}.png`) });
     if (process.env.WECHAT_FULL_UI_AUDIT === "1") (run.uiLayouts ??= []).push({ shot: name, ...await page.evaluate(collectUiLayout) });
   }
+  async function auditRunSkins() {
+    await page.waitForTimeout(80);
+    const residency = await page.evaluate(() => {
+      const api = GameGlobal.__SHEEP_WX_FULL__, save = api.snapshot().save;
+      return { expected: [...new Set([...save.unlockedSkins, save.selectedSkin])].filter(id => id !== "white").map(id => "sheep-runner-" + id).sort(),
+        loaded: api.game().textures.getTextureKeys().filter(key => key.startsWith("sheep-runner-")).sort() };
+    });
+    assert.deepEqual(residency.loaded, residency.expected, "run retained locked wardrobe previews or omitted an owned companion skin");
+    (run.skinResidency ??= []).push(residency);
+  }
   async function finish(allowedErrors = []) {
     run.snapshot = await snapshot(); run.events = await page.evaluate(() => GameGlobal.__SHEEP_WX_HOST__.events); assert.deepEqual(run.snapshot.errors, []);
     if (process.env.WECHAT_FULL_UI_AUDIT === "1") assert.deepEqual((run.uiLayouts ?? []).flatMap(layout => layout.issues), [], "visible UI text overlaps or exceeds its field");
@@ -102,7 +112,7 @@ async function session(id, { fixtures = {}, query = "", width = screen.width, he
     assert.equal(await page.evaluate(() => localStorage.getItem("sheep-run-save")), "WEB_SAVE_SENTINEL"); assert.equal(await page.evaluate(() => localStorage.getItem("sheep-run-wechat-poc-v1")), "POC_SENTINEL");
     run.status = "PASS"; await context.close();
   }
-  run._page = page; return { run, page, context, cdp, snapshot, catalog, boot, waitScene, buttons, position, press, swipe, cancel, surface, shot, finish };
+  run._page = page; return { run, page, context, cdp, snapshot, catalog, boot, waitScene, buttons, position, press, swipe, cancel, surface, shot, auditRunSkins, finish };
 }
 try {
   if (process.env.WECHAT_FULL_MISSING_HOST === "1") {
@@ -169,7 +179,7 @@ try {
   await t.press("button:衣橱"); const skinIds = new Set();
   for (let page = 0; page < 8; page++) { const cards = (await t.buttons()).filter(item => item.name.startsWith("skin-card:")); for (const card of cards) { skinIds.add(card.name.slice(10)); await t.press(card.name); } await t.shot("wardrobe-" + page); if (page < 7) await t.press("button:page-next"); }
   assert.deepEqual([...skinIds].sort(), (await t.catalog()).skins.map(item => item.id).sort()); await t.press("button:返回"); t.run.checks.push("all 36 original sheep skins and eight wardrobe pages render via actual touch");
-  await t.press("button:开始游戏"); await t.waitScene("RunScene"); await t.page.touchscreen.tap(screen.width * .67, screen.height * .67); await t.page.waitForTimeout(60);
+  await t.press("button:开始游戏"); await t.waitScene("RunScene"); await t.auditRunSkins(); await t.page.touchscreen.tap(screen.width * .67, screen.height * .67); await t.page.waitForTimeout(60);
   const jump = await t.snapshot(); assert.ok(jump.run.sheep.velocityY < 0); t.run.jump = jump.run.sheep; await t.shot("jump"); await t.press("button:暂停"); const paused = await t.snapshot();
   assert.ok(paused.scenes.some(scene => scene.key === "RunScene" && scene.paused)); await t.page.waitForTimeout(250); assert.equal((await t.snapshot()).run.activeMs, paused.run.activeMs);
   await t.press("button:微信设置"); await t.press("button:返回"); await t.press("button:重新开始"); await t.waitScene("RunScene");
@@ -208,8 +218,9 @@ try {
   await p.press("skin-card:golden"); await p.press("button:购买"); assert.equal((await p.snapshot()).save.coins, 960); await p.press("button:装备"); assert.equal((await p.snapshot()).save.selectedSkin, "golden");
   for (let page = 0; !(await p.buttons()).some(item => item.name === "skin-card:strawberry-v1"); page++) { assert.ok(page < 8); await p.press("button:page-next"); }
   await p.press("skin-card:strawberry-v1"); await p.press("button:购买"); assert.equal((await p.snapshot()).save.totalStars, 200); assert.equal((await p.snapshot()).save.spentStars, 40);
-  await p.press("button:装备"); await p.press("button:返回"); await p.press("button:开始游戏"); await p.waitScene("RunScene"); assert.equal((await p.snapshot()).run.skinId, "strawberry-v1"); await p.shot("equipped-run");
+  await p.press("button:装备"); await p.press("button:返回"); await p.press("button:开始游戏"); await p.waitScene("RunScene"); await p.auditRunSkins(); assert.equal((await p.snapshot()).run.skinId, "strawberry-v1"); await p.shot("equipped-run");
   await p.press("button:暂停"); await p.press("button:返回首页"); await p.press("button:开始游戏"); await p.waitScene("RunScene");
+  await p.auditRunSkins();
   assert.equal(await p.page.evaluate(() => { const game = GameGlobal.__SHEEP_WX_FULL__.game(), sheep = game.scene.getScene("RunScene").sheep; return sheep.anims.currentFrame.frame.texture === game.textures.get(sheep.texture.key); }), true, "animation still points at a released texture");
   await p.press("button:暂停"); await p.press("button:返回首页"); await p.page.reload(); await p.waitScene("MenuScene"); assert.equal((await p.snapshot()).save.selectedSkin, "strawberry-v1"); assert.equal((await p.snapshot()).save.spentStars, 40);
   p.run.checks.push("isolated funded TEST FIXTURE: cumulative unlock does not spend; coin/star purchases and equip retain exact rules and persist into actual RunScene/reload"); await p.finish();

@@ -5,6 +5,8 @@ import { RESIDENTS, RESIDENT_GROUP_PHOTO_KEY } from "../../../src/residents/Resi
 import { WINDMILL_MEADOW_ASSETS } from "../../../src/delivery/windmillMeadowAssets";
 import type { Host } from "../platform";
 import { menuModalOwner } from "../../../src/ui/MenuModal";
+import { SaveSystem } from "../../../src/systems/SaveSystem";
+import { isSkinId, sheepTextureKey } from "../../../src/data/sheepSkins";
 
 declare const GameGlobal: { __SHEEP_WX_HOST__: Host };
 export const ASSET_SCENE_KEY = "WxAssetScene";
@@ -32,25 +34,31 @@ export function resourceGroups(textures: { key: string; bytes: number }[]): Reco
   ).map(texture => texture.key)]);
   // Small shared stamps/NPCs/controls remain ready. A locked entry must not need
   // an entire chapter's landscape merely to draw its icon or eligibility state.
-  const small = textures.filter(texture => texture.bytes <= 180000).map(texture => texture.key);
+  const small = textures.filter(texture => texture.bytes <= 180000 && !texture.key.startsWith("sheep-runner-")).map(texture => texture.key);
   groups.boot = [...new Set([...textures.filter(texture => !deferred.has(texture.key)).map(texture => texture.key), ...small])];
   const known = new Set(textures.map(texture => texture.key));
   for (const [name, keys] of Object.entries(groups)) for (const key of keys) if (!known.has(key)) throw Error(`Uncaptured original resource ${name}/${key}`);
   return groups;
+}
+/** Companions can use owned skins; an ordinary run never needs locked previews. */
+function runResourceKeys(): string[] {
+  const save = SaveSystem.load();
+  const skins = new Set([...save.unlockedSkins, save.selectedSkin].filter(isSkinId).map(sheepTextureKey));
+  return plan.run.filter(key => !key.startsWith("sheep-runner-") || skins.has(key));
 }
 export function requiredForTouch(scene: Phaser.Scene, name: string): string[] {
   if (!manifest) return [];
   const groups = plan;
   if (["button:成就册", "button:本局成就"].includes(name)) return groups.journey;
   if (name === "button:衣橱") return groups.wardrobe;
-  if (["button:开始游戏", "button:再跑一次", "button:重新开始"].includes(name)) return groups.run;
+  if (["button:开始游戏", "button:再跑一次", "button:重新开始"].includes(name)) return runResourceKeys();
   if (["mailbox-delivery", "mailbox-residents", "resident-brief"].includes(name)) return groups["delivery-select"];
   if (["resident-keepsake", "resident-group"].includes(name)) return groups["resident-art"];
   if (["delivery-start", "delivery-card"].includes(name)) {
     const overlays = scene.game.registry.get("wx-surface-snapshot")?.() ?? [];
     const id = overlays.find((surface: any) => surface.visible && surface.metadata.adventureOverlay === "delivery-panel")?.metadata.chapterId;
     if (!id || !groups["chapter:" + id]) throw Error("A selected original chapter is required before loading its resources");
-    return [...new Set([...groups.run, ...groups["chapter:" + id]])];
+    return [...new Set([...runResourceKeys(), ...groups["chapter:" + id]])];
   }
   return [];
 }
@@ -64,7 +72,7 @@ export function releaseInactiveResources(game: Phaser.Game): void {
   if (signature !== pendingResidency) { pendingResidency = signature; return; }
   if (signature === settledResidency) return; settledResidency = signature;
   const keep = new Set(plan.boot), add = (keys: string[] = []) => keys.forEach(key => keep.add(key));
-  if (scenes.some(scene => ["RunScene", "ResultScene"].includes(scene.sys.settings.key))) add(plan.run);
+  if (scenes.some(scene => ["RunScene", "ResultScene"].includes(scene.sys.settings.key))) add(runResourceKeys());
   if (scenes.some(scene => scene.sys.settings.key === "WardrobeScene")) add(plan.wardrobe);
   if (run?.data.get("delivery-id")) add(plan["chapter:" + run.data.get("delivery-id")]);
   if (owner === "journey") add(plan.journey);
